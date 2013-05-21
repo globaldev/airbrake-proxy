@@ -1,3 +1,4 @@
+log
 airbrake.log
 node_modules
 config/config.json
