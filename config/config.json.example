@@ -1,22 +1,24 @@
 {
-	"listen": {
-		"hostname": "localhost",
-		"host": "0.0.0.0",
-		"port": 6633,
-		"workers": "cpu"
+	'listen': {
+		'host': "127.0.0.1",
+		'port': 6633,
+		'workers': 1,
+		'hostname': "localhost"
 	},
-	"airbrake": {
-		"host": "api.airbrake.io",
-		"port": 443
+	'airbrake': {
+		'host': "api.airbrake.io",
+		'port': 443,
+		'timeout': 10000,
+		'protocol': "https"
 	},
-	"redis": {
-		"host": "127.0.0.1",
-		"port": 6379,
-		"key": "airbrakeproxy"
+	'redis': {
+		'host': "127.0.0.1",
+		'port': 6379,
+		'prefix': "airbrakeproxy"
 	},
-	"statsd": {
-		"host": "127.0.0.1",
-		"port": 8125,
-		"prefix": "airbrakeproxy"
+	'statsd': {
+		'host': "127.0.0.1",
+		'port': 8125,
+		'prefix': "airbrakeproxy"
 	}
 }

@@ -18,11 +18,7 @@ var cluster = require('cluster');
 var microtime = require('microtime');
 var nodestatsd = require('node-statsd').StatsD;
 var xmlparse = require('xml2js').parseString;
-var uuid = require('./uuid');
-
-// Fetch the number of CPU threads and determine minimum cluster worker count
-var cpus = require('os').cpus().length;
-var workers = ((cpus / 2) > 1) ? Math.floor((cpus / 2)) : 1;
+var uuid = require('./lib/uuid');
 
 /*
  * Configuration
@@ -30,58 +26,14 @@ var workers = ((cpus / 2) > 1) ? Math.floor((cpus / 2)) : 1;
 
 // Load configuration from disk
 try {
-	var config = require('./config/config.json');
+	var configjson = require('./config/config.json');
 } catch (e) {
 	util.log("Could not load configuration, did you create config.json?");
 	process.exit(1);
 }
 
-// Listen process host and port settings and validation
-config.listen = (config.listen === null) ? {'host': null, 'port': null, 'workers': null, 'hostname': null} : config.listen;
-config.listen.host = (config.listen.host === null) ? "0.0.0.0" : config.listen.host;
-config.listen.port = (config.listen.port === null) ? 80 : parseInt(config.listen.port, 10);
-config.listen.workers = ((config.listen.workers === null) || (config.listen.workers === "cpu")) ? workers : parseInt(config.listen.workers, 10);
-config.listen.hostname = (config.listen.hostname === null) ? "localhost" : config.listen.hostname;
-
-if ((config.listen.port < 1) || (config.listen.port > 65535) || isNaN(config.listen.port)) {
-	util.log("Listen port number seems invalid, check configuration");
-	process.exit(2);
-}
-
-if ((config.listen.workers === 0) || isNaN(config.listen.workers)) {
-	util.log("Cluster worker count is 0, so no workers would be created");
-	process.exit(3);
-}
-
-// Configure the airbrake service hostname
-config.airbrake = (config.airbrake === null) ? {'host': null, 'port': null, 'timeout': null} : config.airbrake;
-config.airbrake.host = (config.airbrake.host === null) ? "api.airbrake.io" : config.airbrake.host.replace(/https?:\/\//, '');
-config.airbrake.port = (config.airbrake.port === null) ? 443 : parseInt(config.airbrake.port, 10);
-config.airbrake.timeout = ((config.airbrake.timeout === null) || (parseInt(config.airbrake.timeout, 10) === 0)) ? 10000 : parseInt(config.airbrake.timeout, 10);
-
-if ((config.airbrake.port < 1) || (config.airbrake.port > 65535) || isNaN(config.airbrake.port)) {
-	util.log("Airbrake port number seems invalid, check configuration");
-	process.exit(4);
-}
-
-// Choose the protocol to connect to Airbrake to based on the port
-if (config.airbrake.port === 443) {
-	config.airbrake.protocol = require('https');
-} else {
-	config.airbrake.protocol = require('http');
-}
-
-// Redis host and port settings and validation
-config.redis = (config.redis === null) ? {'host': null, 'port': null, 'prefix': null} : config.redis;
-config.redis.host = (config.redis.host === null) ? "127.0.0.1" : config.redis.host;
-config.redis.port = (config.redis.port === null) ? 6379 : parseInt(config.redis.port, 10);
-config.redis.prefix = (config.redis.prefix === null) ? "airbrakeproxy" : config.redis.prefix;
-config.redis.key = config.redis.prefix + ":uuid";
-
-if ((config.redis.port < 1) || (config.redis.port > 65535) || isNaN(config.redis.port)) {
-	util.log("Redis port number seems invalid, check configuration");
-	process.exit(5);
-}
+// Parse configuration against defaults
+var config = require('./lib/config').config(configjson);
 
 // Create Redis connection
 var redis = require('redis').createClient(config.redis.port, config.redis.host, {'enable_offline_queue': false});
@@ -89,17 +41,6 @@ redis.on('error', function (error) {
 	util.log("Could not create a Redis client connection to " + config.redis.host + ":" + config.redis.port);
 	process.exit(6);
 });
-
-// StatsD configuration and validation
-config.statsd = (config.statsd === null) ? {'host': null, 'port': null, 'prefix': null} : config.statsd;
-config.statsd.host = (config.statsd.host === null) ? "127.0.0.1" : config.statsd.host;
-config.statsd.port = (config.statsd.port === null) ? 8125 : parseInt(config.statsd.port, 10);
-config.statsd.prefix = (config.statsd.prefix === null) ? "airbrakeproxy" : config.statsd.prefix;
-
-if ((config.statsd.port < 1) || (config.statsd.port > 65535) || isNaN(config.statsd.port)) {
-	util.log("StatsD port number seems invalid, check configuration");
-	process.exit(7);
-}
 
 // Create StatsD connection
 var statsd = new nodestatsd(config.statsd.host, config.statsd.port);
