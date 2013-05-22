@@ -37,6 +37,7 @@ var config = require('./lib/config').config(configjson);
 
 // Create Redis connection
 var redis = require('redis').createClient(config.redis.port, config.redis.host, {'enable_offline_queue': false});
+
 redis.on('error', function (error) {
 	util.log("Could not create a Redis client connection to " + config.redis.host + ":" + config.redis.port);
 	process.exit(6);
@@ -70,12 +71,12 @@ if (cluster.isMaster) {
 	util.log('Child ' + cluster.worker.process.pid + ' started, listening to client requests');
 
 	// Make a request to Airbrake, and store the UUID pairing in Redis
-	var store = function (responseuuid, data) {
+	var store = function (requesturl, responseuuid, data) {
 		var airbrakeRequestOptions = {
 			hostname: config.airbrake.host,
 			port: config.airbrake.port,
 			method: 'POST',
-			path: '/notifier_api/v2/notices',
+			path: requesturl,
 			headers: {
 				'Content-Type': "text/xml",
 				'Connection': "close",
@@ -130,10 +131,11 @@ if (cluster.isMaster) {
 
 	// Create an HTTP server to listen to lookup GET requests and Airbrake client POST requests
 	http.createServer(function (request, response) {
+		var requesturl = request.url;
 		var startHTTP = microtime.now();
 
 		if (request.method === "GET") {
-			var requesturl = request.url.replace(/\/locate\//g, '').replace(/\//g, '').substring(0, 36);
+			requesturl = requesturl.replace(/\/locate\//g, '').replace(/\//g, '').substring(0, 36);
 			redis.hget(config.redis.key, requesturl, function (error, reply) {
 				if (reply) {
 					response.writeHead(303, {
@@ -163,7 +165,7 @@ if (cluster.isMaster) {
 
 				// Store the initial UUID in Redis and make the Airbrake request
 				redis.hset(config.redis.key, responseuuid, "null", function (error) {
-					store(responseuuid, data);
+					store(requesturl, responseuuid, data);
 				});
 			});
 		}
