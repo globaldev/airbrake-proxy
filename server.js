@@ -35,6 +35,9 @@ try {
 // Parse configuration against defaults
 var config = require('./lib/config').config(configjson);
 
+// Choose protocol to connect to Airbrake with
+config.airbrake.connection = (config.airbrake.protocol === "https") ? require('https') : require('http');
+
 // Create Redis connection
 var redis = require('redis').createClient(config.redis.port, config.redis.host, {'enable_offline_queue': false});
 
@@ -86,7 +89,7 @@ if (cluster.isMaster) {
 		var startAirbrake = microtime.now();
 
 		// Make the real request to Airbrake
-		var airbrakeRequest = config.airbrake.protocol.request(airbrakeRequestOptions, function (airbrakeResponse) {
+		var airbrakeRequest = config.airbrake.connection.request(airbrakeRequestOptions, function (airbrakeResponse) {
 			var responseData = '';
 			airbrakeResponse.on('data', function (chunk) {
 				responseData += chunk;
