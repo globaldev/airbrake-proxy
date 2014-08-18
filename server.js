@@ -105,6 +105,8 @@ if (cluster.isMaster) {
 					if (airbrake && airbrake.notice && airbrake.notice.id[0]) {
 						redis.hset(config.redis.key, responseuuid, airbrake.notice.id[0]);
 						statsd.increment(config.statsd.prefix + '.airbrake.request.success');
+					} else if (airbrake && airbrake.error && (airbrake.error == "Project is rate limited.")) {
+						statsd.increment(config.statsd.prefix + '.airbrake.request.fail.ratelimited');
 					} else {
 						util.log("XML object returned from " + config.airbrake.host + ":" + config.airbrake.port + " is invalid; response: " + responseData);
 						statsd.increment(config.statsd.prefix + '.airbrake.request.fail.xml');
