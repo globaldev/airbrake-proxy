@@ -148,6 +148,8 @@ if (cluster.isMaster) {
 				return;
 			}
 
+			hostname = (typeof(xml.notice['server-environment'][0].hostname) == "undefined") ? "None" : xml.notice['server-environment'][0].hostname[0];
+
 			// Backtrace frames
 			var frames = [];
 			var lines = xml.notice.error[0].backtrace[0].line;
@@ -171,23 +173,44 @@ if (cluster.isMaster) {
 				"module": "exception"
 			});
 
+			// Environment variables for request object
+			var env = {};
+			if (typeof(xml.notice.request[0]['cgi-data']) != "undefined") {
+				xml.notice.request[0]['cgi-data'][0].var.forEach(function(data) {
+					env[data.$.key] = (typeof(data._) == "undefined") ? "" : data._.toString();
+				});
+			}
+
+			// Parameter data for request object
+			var params = {};
+			if (typeof(xml.notice.request[0]['params']) != "undefined") {
+				xml.notice.request[0]['params'][0].var.forEach(function(data) {
+					params[data.$.key] = (typeof(data._) == "undefined") ? "" : data._.toString();
+				});
+			}
+
 			// Sentry JSON object
 			var sentry = {
-			  "message": xml.notice.error[0].message[0],
-			  "sentry.interfaces.Exception": {
-			    "type": xml.notice.error[0].class[0],
-			    "value": xml.notice.error[0].message[0]
-			  },
-			  "sentry.interfaces.Stacktrace": {
-			    "frames": frames
-			  },
-			  "culprit": xml.notice.error[0].message[0],
-			  "server_name": xml.notice['server-environment'][0].hostname[0],
-			  "extra": {},
-			  "logger": "",
-			  "timestamp": Date.now(),
-			  "project": config.sentry.projects[xml.notice['api-key']].id,
-			  "platform": config.sentry.projects[xml.notice['api-key']].platform
+				"message": xml.notice.error[0].message[0],
+					"exception": {
+					"type": xml.notice.error[0].class[0],
+					"value": xml.notice.error[0].message[0]
+				},
+				"stacktrace": {
+					"frames": frames
+				},
+				"request": {
+					"url": xml.notice.request[0].url[0],
+					"data": params,
+					"env": env
+				},
+				"culprit": xml.notice.error[0].message[0],
+				"server_name": hostname,
+				"extra": {},
+				"logger": "",
+				"timestamp": Date.now(),
+				"project": config.sentry.projects[xml.notice['api-key']].id,
+				"platform": config.sentry.projects[xml.notice['api-key']].platform
 			};
 
 			sentry['event_id'] = crypto.createHash('md5').update(JSON.stringify(sentry)).digest('hex');
