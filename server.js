@@ -161,16 +161,23 @@ if (cluster.isMaster) {
 			// Backtrace frames
 			var frames = [];
 			var lines = xml.notice.error[0].backtrace[0].line;
-			var finalLine = lines.pop();
+
+			// Make sure the final frame has usable details
+			var finalLine = {$: ''};
+			while (! finalLine.$.file || ! finalLine.$.number) {
+				finalLine = lines.pop();
+			}
 
 			lines.forEach(function(line) {
-				frames.push({
-					"filename": line.$.file.replace('[PROJECT_ROOT]', xml.notice['server-environment'][0]['project-root'][0]),
-					"lineno": line.$.number,
-					"function": line.$.method,
-					"in_app": true,
-					"module": "node"
-				});
+				if (line.$.file && line.$.number) {
+					frames.push({
+						"filename": line.$.file.replace('[PROJECT_ROOT]', xml.notice['server-environment'][0]['project-root'][0]),
+						"lineno": line.$.number,
+						"function": line.$.method,
+						"in_app": true,
+						"module": "node"
+					});
+				}
 			});
 
 			frames.push({

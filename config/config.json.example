@@ -13,7 +13,7 @@
 	},
 	"sentry": {
 		"host": "",
-		"port": 0,
+		"port": 443,
 		"timeout": 10000,
 		"protocol": "https",
 		"projects": {
