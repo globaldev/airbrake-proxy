@@ -309,12 +309,15 @@ if (cluster.isMaster) {
 				var endHTTP = microtime.now();
 				statsd.timing(config.statsd.prefix + '.http.request', ((endHTTP - startHTTP) / 1000));
 
-				// Store the initial UUID in Redis and make the Airbrake request
-				redis.hset(config.redis.key, responseuuid, "null", function (error) {
-					storeAirbrake(requesturl, responseuuid, data);
-				});
+				// Store the generated UUID in Redis
+				redis.hset(config.redis.key, responseuuid, "null");
 
-				// If Sentry configuration is defined, create and send a Sentry request
+				// If Airbrake configuration is defined, forward the request on to the Airbrake host
+				if (config.airbrake.host != "") {
+					storeAirbrake(requesturl, responseuuid, data);
+				}
+
+				// If Sentry configuration is defined, create and send a Sentry request object to the Sentry host
 				if (config.sentry.host != "") {
 					storeSentry(responseuuid, data);
 				}
