@@ -105,13 +105,21 @@ if (cluster.isMaster) {
 				statsd.timing(config.statsd.prefix + '.airbrake.request', ((endAirbrake - startAirbrake) / 1000));
 
 				xmlparse(responseData, function (error, airbrake) {
-					if (airbrake && airbrake.notice && airbrake.notice.id[0]) {
-						redis.hset(config.redis.key, responseuuid, airbrake.notice.id[0]);
-						statsd.increment(config.statsd.prefix + '.airbrake.request.success');
-					} else if (airbrake && airbrake.error && (airbrake.error == "Project is rate limited.")) {
-						statsd.increment(config.statsd.prefix + '.airbrake.request.fail.ratelimited');
-					} else {
-						util.log("XML object returned from " + config.airbrake.host + ":" + config.airbrake.port + " is invalid; response: " + responseData);
+					try {
+						if (error) {
+							throw new Error("xml2js parse error: " + error);
+						} else {
+							if (airbrake && airbrake.notice && airbrake.notice.id[0]) {
+								redis.hset(config.redis.key, responseuuid, airbrake.notice.id[0]);
+								statsd.increment(config.statsd.prefix + '.airbrake.request.success');
+							} else if (airbrake && airbrake.error && (airbrake.error == "Project is rate limited.")) {
+								statsd.increment(config.statsd.prefix + '.airbrake.request.fail.ratelimited');
+							} else {
+								throw new Error("XML response from Airbrake contained no success ID")
+							}
+						}
+					} catch (responseError) {
+						util.log("XML object returned from " + config.airbrake.host + ":" + config.airbrake.port + " is invalid (" + responseError + "); response: " + responseData);
 						statsd.increment(config.statsd.prefix + '.airbrake.request.fail.xml');
 					}
 				});
@@ -247,6 +255,18 @@ if (cluster.isMaster) {
 						}).on('end', function () {
 							var endSentry = microtime.now();
 							statsd.timing(config.statsd.prefix + '.sentry.request', ((endSentry - startSentry) / 1000));
+							try {
+								var sentry = JSON.parse(responseData);
+								if (sentry.id) {
+									redis.hset(config.redis.key, responseuuid, sentry.id);
+									statsd.increment(config.statsd.prefix + '.sentry.request.success');
+								} else {
+									throw new Error("JSON response from Sentry contained no success ID");
+								}
+							} catch (responseError) {
+								statsd.increment(config.statsd.prefix + '.sentry.request.fail.json');
+								util.log("JSON response returned from " + config.sentry.host + ":" + config.sentry.port + " is invalid (" + responseError + "); response: " + responseData);
+							}
 						});
 					});
 
