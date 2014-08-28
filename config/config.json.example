@@ -11,6 +11,20 @@
 		"timeout": 10000,
 		"protocol": "https"
 	},
+	"sentry": {
+		"host": "",
+		"port": 443,
+		"timeout": 10000,
+		"protocol": "https",
+		"projects": {
+			"AIRBRAKE_API_KEY": {
+				"id": "SENTRY_PROJECT_ID",
+				"key": "SENTRY_KEY",
+				"secret": "SENTRY_SECRET",
+				"platform": "SENTRY_PLATFORM"
+			}
+		}
+	},
 	"redis": {
 		"host": "127.0.0.1",
 		"port": 6379,
