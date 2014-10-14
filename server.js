@@ -90,6 +90,7 @@ if (cluster.isMaster) {
 			headers: {
 				'Content-Type': "text/xml",
 				'Connection': "close",
+				'Content-Length': data.length,
 			},
 		};
 
