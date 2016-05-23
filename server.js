@@ -191,7 +191,8 @@ if (cluster.isMaster) {
 
 			// Environment variables for request object
 			var env = {};
-			if (typeof(xml.notice.request[0]['cgi-data']) != "undefined") {
+
+			if (typeof(xml.notice.request) != "undefined" && typeof(xml.notice.request[0]['cgi-data']) != "undefined") {
 				xml.notice.request[0]['cgi-data'][0].var.forEach(function(data) {
 					env[data.$.key] = (typeof(data._) == "undefined") ? "" : data._.toString();
 				});
@@ -199,7 +200,7 @@ if (cluster.isMaster) {
 
 			// Parameter data for request object
 			var params = {};
-			if (typeof(xml.notice.request[0]['params']) != "undefined") {
+			if (typeof(xml.notice.request) != "undefined" && typeof(xml.notice.request[0]['params']) != "undefined") {
 				xml.notice.request[0]['params'][0].var.forEach(function(data) {
 					params[data.$.key] = (typeof(data._) == "undefined") ? "" : data._.toString();
 				});
@@ -215,11 +216,6 @@ if (cluster.isMaster) {
 				"stacktrace": {
 					"frames": frames
 				},
-				"request": {
-					"url": xml.notice.request[0].url[0],
-					"data": params,
-					"env": env
-				},
 				"culprit": xml.notice.error[0].message[0],
 				"server_name": hostname,
 				"extra": {},
@@ -228,6 +224,14 @@ if (cluster.isMaster) {
 				"project": config.sentry.projects[xml.notice['api-key']].id,
 				"platform": config.sentry.projects[xml.notice['api-key']].platform
 			};
+
+			if (typeof(xml.notice.request) != "undefined") {
+				sentry["request"] = {
+					"url": xml.notice.request[0].url[0],
+					"data": params,
+					"env": env
+				};
+			}
 
 			sentry['event_id'] = crypto.createHash('md5').update(JSON.stringify(sentry)).digest('hex');
 

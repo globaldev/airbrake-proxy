@@ -13,7 +13,7 @@ Get the code from [GitHub][router]:
     git clone git@github.com:globaldev/airbrake-proxy.git
     cd airbrake-proxy
 
-Installing the dependancies:
+Installing the dependencies:
 
     npm install
 
@@ -27,5 +27,5 @@ Create configuration files by copying the example configuration:
 
 ## Running
 
-    cd ~/Projects/wld-api-router
+    cd ~/Projects/airbrake-proxy
     npm start
