@@ -247,7 +247,7 @@ if (cluster.isMaster) {
 					var sentryRequestOptions = {
 						host: config.sentry.host,
 						port: config.sentry.port,
-						path: '/api/store/',
+						path: '/api/' + config.sentry.projects[xml.notice['api-key']].id + '/store/',
 						method: 'POST',
 						headers: {
 							'Connection': 'close',
