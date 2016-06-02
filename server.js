@@ -249,7 +249,8 @@ if (cluster.isMaster) {
 
 					// POST to Sentry
 					var sentry_host, sentry_port, sentry_path, sentry_conection;
-					if (sentry_hosted_projects.indexOf(xml.notice['api-key']) > -1) {
+
+					if (sentry_hosted_projects.indexOf(xml.notice['api-key'][0]) > -1) {
 					    sentry_host = config.hosted_sentry.host;
 					    sentry_port = config.hosted_sentry.port;
 					    sentry_path = '/api/' + config.sentry.projects[xml.notice['api-key']].id + '/store/';
