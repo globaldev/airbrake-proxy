@@ -25,6 +25,12 @@
 			}
 		}
 	},
+	"hosted_sentry": {
+		"host": "app.getsentry.com",
+		"port": 443,
+		"protocol": "https",
+		"projects": ["AIRBRAKE_API_KEY"]
+	},
 	"redis": {
 		"host": "127.0.0.1",
 		"port": 6379,

@@ -37,9 +37,13 @@ try {
 // Parse configuration against defaults
 var config = require('./lib/config').config(configjson);
 
+// Projects that are in hosted sentry
+var sentry_hosted_projects = config.hosted_sentry.projects;
+
 // Choose protocol to connect to Airbrake and Sentry with
 config.airbrake.connection = (config.airbrake.protocol === "https") ? require('https') : require('http');
 config.sentry.connection = (config.sentry.protocol === "https") ? require('https') : require('http');
+config.hosted_sentry.connection = (config.hosted_sentry.protocol === "https") ? require('https') : require('http');
 
 // Create Redis connection
 var redis = require('redis').createClient(config.redis.port, config.redis.host, {'enable_offline_queue': false});
@@ -191,7 +195,8 @@ if (cluster.isMaster) {
 
 			// Environment variables for request object
 			var env = {};
-			if (typeof(xml.notice.request[0]['cgi-data']) != "undefined") {
+
+			if (typeof(xml.notice.request) != "undefined" && typeof(xml.notice.request[0]['cgi-data']) != "undefined") {
 				xml.notice.request[0]['cgi-data'][0].var.forEach(function(data) {
 					env[data.$.key] = (typeof(data._) == "undefined") ? "" : data._.toString();
 				});
@@ -199,7 +204,7 @@ if (cluster.isMaster) {
 
 			// Parameter data for request object
 			var params = {};
-			if (typeof(xml.notice.request[0]['params']) != "undefined") {
+			if (typeof(xml.notice.request) != "undefined" && typeof(xml.notice.request[0]['params']) != "undefined") {
 				xml.notice.request[0]['params'][0].var.forEach(function(data) {
 					params[data.$.key] = (typeof(data._) == "undefined") ? "" : data._.toString();
 				});
@@ -215,11 +220,6 @@ if (cluster.isMaster) {
 				"stacktrace": {
 					"frames": frames
 				},
-				"request": {
-					"url": xml.notice.request[0].url[0],
-					"data": params,
-					"env": env
-				},
 				"culprit": xml.notice.error[0].message[0],
 				"server_name": hostname,
 				"extra": {},
@@ -228,6 +228,14 @@ if (cluster.isMaster) {
 				"project": config.sentry.projects[xml.notice['api-key']].id,
 				"platform": config.sentry.projects[xml.notice['api-key']].platform
 			};
+
+			if (typeof(xml.notice.request) != "undefined") {
+				sentry["request"] = {
+					"url": xml.notice.request[0].url[0],
+					"data": params,
+					"env": env
+				};
+			}
 
 			sentry['event_id'] = crypto.createHash('md5').update(JSON.stringify(sentry)).digest('hex');
 
@@ -240,10 +248,24 @@ if (cluster.isMaster) {
 					var base64 = new Buffer(gz).toString('base64');
 
 					// POST to Sentry
+					var sentry_host, sentry_port, sentry_path, sentry_conection;
+
+					if (sentry_hosted_projects.indexOf(xml.notice['api-key'][0]) > -1) {
+					    sentry_host = config.hosted_sentry.host;
+					    sentry_port = config.hosted_sentry.port;
+					    sentry_path = '/api/' + config.sentry.projects[xml.notice['api-key']].id + '/store/';
+					    sentry_conection = config.hosted_sentry.connection;
+					} else {
+					    sentry_host = config.sentry.host;
+					    sentry_port = config.sentry.port;
+					    sentry_path = '/api/store/';
+					    sentry_conection = config.sentry.connection;
+					}
+
 					var sentryRequestOptions = {
-						host: config.sentry.host,
-						port: config.sentry.port,
-						path: '/api/store/',
+						host: sentry_host,
+						port: sentry_port,
+						path: sentry_path,
 						method: 'POST',
 						headers: {
 							'Connection': 'close',
@@ -256,7 +278,7 @@ if (cluster.isMaster) {
 					var startSentry = microtime.now();
 
 					// Make the request to Sentry
-					var sentryRequest = config.sentry.connection.request(sentryRequestOptions, function(sentryResult) {
+					var sentryRequest = sentry_conection.request(sentryRequestOptions, function(sentryResult) {
 						var responseData = '';
 						sentryResult.on('data', function (chunk) {
 							responseData += chunk;
