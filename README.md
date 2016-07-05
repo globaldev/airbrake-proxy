@@ -1,4 +1,4 @@
-TCP proxy for buffering connections to Airbrake and Errbit so that they don't add request latency to reporting applications
+TCP proxy for buffering connections to Sentry, Airbrake and Errbit so that they don't add request latency to reporting applications
 
 ## Prerequisites
 
@@ -10,8 +10,8 @@ TCP proxy for buffering connections to Airbrake and Errbit so that they don't ad
 Get the code from [GitHub][router]:
 
     cd ~/Projects
-    git clone git@github.com:globaldev/airbrake-proxy.git
-    cd airbrake-proxy
+    git clone git@github.com:globaldev/error-proxy.git
+    cd error-proxy
 
 Installing the dependencies:
 
