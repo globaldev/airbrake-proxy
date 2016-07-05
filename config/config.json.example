@@ -7,9 +7,9 @@
 	}
 	"sentry": {
 		"host": "app.getsentry.com",
-    "port": 443,
-    "timeout": 10000,
-    "protocol": "https",
+		"port": 443,
+		"timeout": 10000,
+		"protocol": "https",
 		"projects": {
 			"AIRBRAKE_API_KEY": {
 				"id": "SENTRY_PROJECT_ID",
