@@ -3,9 +3,9 @@
 /**
  * server.js
  *
- * This is the master airbrake-proxy process responsible for controlling the
+ * This is the master error-proxy process responsible for controlling the
  * main worker cluster that deals with listening to Airbrake client requests
- * and storing them in Airbrake.
+ * and storing them in Sentry.
  */
 
 /*
