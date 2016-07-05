@@ -27,5 +27,5 @@ Create configuration files by copying the example configuration:
 
 ## Running
 
-    cd ~/Projects/airbrake-proxy
+    cd ~/Projects/error-proxy
     npm start
