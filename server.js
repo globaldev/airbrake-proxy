@@ -3,9 +3,9 @@
 /**
  * server.js
  *
- * This is the master airbrake-proxy process responsible for controlling the
+ * This is the master error-proxy process responsible for controlling the
  * main worker cluster that deals with listening to Airbrake client requests
- * and storing them in Airbrake.
+ * and storing them in Sentry.
  */
 
 /*
@@ -37,13 +37,8 @@ try {
 // Parse configuration against defaults
 var config = require('./lib/config').config(configjson);
 
-// Projects that are in hosted sentry
-var sentry_hosted_projects = config.hosted_sentry.projects;
-
-// Choose protocol to connect to Airbrake and Sentry with
-config.airbrake.connection = (config.airbrake.protocol === "https") ? require('https') : require('http');
+// Choose protocol to connect to Sentry with
 config.sentry.connection = (config.sentry.protocol === "https") ? require('https') : require('http');
-config.hosted_sentry.connection = (config.hosted_sentry.protocol === "https") ? require('https') : require('http');
 
 // Create Redis connection
 var redis = require('redis').createClient(config.redis.port, config.redis.host, {'enable_offline_queue': false});
@@ -65,7 +60,7 @@ var xmlresponse = '<?xml version="1.0"?><notice><id>{UUID}</id><url>http://' + c
 
 if (cluster.isMaster) {
 	// Give the master a proper process title in the process list
-	process.title = 'airbrake-proxy';
+	process.title = 'error-proxy';
 
 	// Helper function to fork a child worker
 	var fork = function () {
@@ -83,75 +78,6 @@ if (cluster.isMaster) {
 	});
 } else if (cluster.isWorker) {
 	util.log('Child ' + cluster.worker.process.pid + ' started, listening to client requests');
-
-	// Make a request to Airbrake, and store the UUID pairing in Redis
-	var storeAirbrake = function (requesturl, responseuuid, data) {
-		var airbrakeRequestOptions = {
-			hostname: config.airbrake.host,
-			port: config.airbrake.port,
-			method: 'POST',
-			path: requesturl,
-			headers: {
-				'Content-Type': "text/xml",
-				'Connection': "close",
-				'Content-Length': data.length,
-			},
-		};
-
-		var startAirbrake = microtime.now();
-
-		// Make the real request to Airbrake
-		var airbrakeRequest = config.airbrake.connection.request(airbrakeRequestOptions, function (airbrakeResponse) {
-			var responseData = '';
-			airbrakeResponse.on('data', function (chunk) {
-				responseData += chunk;
-			}).on('end', function () {
-				var endAirbrake = microtime.now();
-				statsd.timing(config.statsd.prefix + '.airbrake.request', ((endAirbrake - startAirbrake) / 1000));
-
-				xmlparse(responseData, function (error, airbrake) {
-					try {
-						if (error) {
-							throw new Error("xml2js parse error: " + error);
-						} else {
-							if (airbrake && airbrake.notice && airbrake.notice.id[0]) {
-								redis.hset(config.redis.key, responseuuid, airbrake.notice.id[0]);
-								statsd.increment(config.statsd.prefix + '.airbrake.request.success');
-							} else if (airbrake && airbrake.error && (airbrake.error == "Project is rate limited.")) {
-								statsd.increment(config.statsd.prefix + '.airbrake.request.fail.ratelimited');
-							} else {
-								throw new Error("XML response from Airbrake contained no success ID")
-							}
-						}
-					} catch (responseError) {
-						util.log("XML object returned from " + config.airbrake.host + ":" + config.airbrake.port + " is invalid (" + responseError + "); response: " + responseData);
-						statsd.increment(config.statsd.prefix + '.airbrake.request.fail.xml');
-					}
-				});
-			});
-		});
-
-		// Set a connection timeout
-		airbrakeRequest.on('socket', function (socket) {
-			socket.setTimeout(config.airbrake.timeout);
-			socket.on('timeout', function () {
-				statsd.increment(config.statsd.prefix + '.airbrake.request.fail.timeout');
-				util.log("Connection to " + config.airbrake.host + ":" + config.airbrake.port + " for " + responseuuid + " timed out after " + config.airbrake.timeout + "ms");
-				airbrakeRequest.abort();
-			});
-		});
-
-		// Drop the request if we had a communication error
-		airbrakeRequest.on('error', function (error) {
-			util.log("Failed sending request to " + config.airbrake.host + ":" + config.airbrake.port + " for " + responseuuid + ", exception lost; error: " + error);
-			airbrakeRequest.abort();
-			statsd.increment(config.statsd.prefix + '.airbrake.request.fail.error');
-		});
-
-		// Send the Airbrake XML data and end the connection
-		airbrakeRequest.write(data);
-		airbrakeRequest.end();
-	};
 
 	// Create and make a request to Sentry
 	var storeSentry = function (responseuuid, data) {
@@ -248,37 +174,23 @@ if (cluster.isMaster) {
 					var base64 = new Buffer(gz).toString('base64');
 
 					// POST to Sentry
-					var sentry_host, sentry_port, sentry_path, sentry_conection;
-
-					if (sentry_hosted_projects.indexOf(xml.notice['api-key'][0]) > -1) {
-					    sentry_host = config.hosted_sentry.host;
-					    sentry_port = config.hosted_sentry.port;
-					    sentry_path = '/api/' + config.sentry.projects[xml.notice['api-key']].id + '/store/';
-					    sentry_conection = config.hosted_sentry.connection;
-					} else {
-					    sentry_host = config.sentry.host;
-					    sentry_port = config.sentry.port;
-					    sentry_path = '/api/store/';
-					    sentry_conection = config.sentry.connection;
-					}
-
 					var sentryRequestOptions = {
-						host: sentry_host,
-						port: sentry_port,
-						path: sentry_path,
+						host: config.sentry.host,
+						port: config.sentry.port,
+						path: '/api/' + config.sentry.projects[xml.notice['api-key']].id + '/store/',
 						method: 'POST',
 						headers: {
 							'Connection': 'close',
 							'Content-Type': 'application/octet-stream',
 							'Content-Length': base64.length,
-							'X-Sentry-Auth': 'Sentry sentry_version=5, sentry_timestamp=' + Date.now() + '000, sentry_client=airbrake-proxy/0.1.0, sentry_key=' + config.sentry.projects[xml.notice['api-key']].key +', sentry_secret=' + config.sentry.projects[xml.notice['api-key']].secret + ''
+							'X-Sentry-Auth': 'Sentry sentry_version=5, sentry_timestamp=' + Date.now() + '000, sentry_client=error-proxy/0.1.0, sentry_key=' + config.sentry.projects[xml.notice['api-key']].key +', sentry_secret=' + config.sentry.projects[xml.notice['api-key']].secret + ''
 						}
 					};
 
 					var startSentry = microtime.now();
 
 					// Make the request to Sentry
-					var sentryRequest = sentry_conection.request(sentryRequestOptions, function(sentryResult) {
+					var sentryRequest = config.sentry.connection.request(sentryRequestOptions, function(sentryResult) {
 						var responseData = '';
 						sentryResult.on('data', function (chunk) {
 							responseData += chunk;
@@ -361,11 +273,6 @@ if (cluster.isMaster) {
 
 				// Store the generated UUID in Redis
 				redis.hset(config.redis.key, responseuuid, "null");
-
-				// If Airbrake configuration is defined, forward the request on to the Airbrake host
-				if (config.airbrake.host != "") {
-					storeAirbrake(requesturl, responseuuid, data);
-				}
 
 				// If Sentry configuration is defined, create and send a Sentry request object to the Sentry host
 				if (config.sentry.host != "") {
