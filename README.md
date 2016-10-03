@@ -30,6 +30,33 @@ Create configuration files by copying the example configuration:
 
     cp config/config.json.example config/config.json
 
+
+##Adding a new project
+
+1. Get Ops to create the project in Sentry
+
+2. Update config.json with those details
+
+	```
+    "UUID_string": {
+        "id": "SENTRY_PROJECT_ID",
+        "key": "SENTRY_KEY",
+        "secret": "SENTRY_SECRET",
+        "platform": "SENTRY_PLATFORM"
+    }
+	```
+	If the project exists in Airbrake set the Airbrake key as the `UUID_string`.
+
+3. Update your app to point to the error proxy and set the api_key to the UUID_string.
+
+	```
+	Airbrake.configure do |config|
+	  config.api_key = "UUID_string"
+	  config.host = "errorproxy1"
+	  config.port = "6633"
+	end
+	```
+
 ## Running
 
     cd ~/Projects/error-proxy
