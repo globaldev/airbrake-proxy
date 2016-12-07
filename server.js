@@ -152,7 +152,8 @@ if (cluster.isMaster) {
 				"logger": "",
 				"timestamp": Date.now(),
 				"project": config.sentry.projects[xml.notice['api-key']].id,
-				"platform": config.sentry.projects[xml.notice['api-key']].platform
+				"platform": config.sentry.projects[xml.notice['api-key']].platform,
+				"environment:" xml.notice['server-environment'][0]['environment-name'][0]
 			};
 
 			if (typeof(xml.notice.request) != "undefined") {
