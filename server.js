@@ -17,7 +17,6 @@ var http = require('http');
 var zlib = require('zlib');
 var crypto = require('crypto');
 var cluster = require('cluster');
-var microtime = require('microtime');
 var xmlparse = require('xml2js').parseString;
 var uuid = require('./lib/uuid');
 
@@ -176,15 +175,12 @@ if (cluster.isMaster) {
 						}
 					};
 
-					var startSentry = microtime.now();
-
 					// Make the request to Sentry
 					var sentryRequest = config.sentry.connection.request(sentryRequestOptions, function(sentryResult) {
 						var responseData = '';
 						sentryResult.on('data', function (chunk) {
 							responseData += chunk;
 						}).on('end', function () {
-							var endSentry = microtime.now();
 							try {
 								var sentry = JSON.parse(responseData);
 								if (!sentry.id) {
@@ -222,7 +218,6 @@ if (cluster.isMaster) {
 	// Create an HTTP server to listen to lookup GET requests and Airbrake client POST requests
 	http.createServer(function (request, response) {
 		var requesturl = request.url;
-		var startHTTP = microtime.now();
 
 		if (request.method != "GET") {
 			var data = '';
