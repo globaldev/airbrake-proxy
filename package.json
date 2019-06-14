@@ -8,10 +8,6 @@
 	},
 	"engine": "node >= 0.8.0",
 	"dependencies": {
-		"redis": "0.8.x",
-		"hiredis": "0.1.x",
-		"xml2js": "0.2.x",
-		"microtime": "0.3.x",
-		"node-statsd": "0.0.x"
+		"xml2js": "0.2.x"
 	}
 }
