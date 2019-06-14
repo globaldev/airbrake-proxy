@@ -40,14 +40,6 @@ var config = require('./lib/config').config(configjson);
 // Choose protocol to connect to Sentry with
 config.sentry.connection = (config.sentry.protocol === "https") ? require('https') : require('http');
 
-// Create Redis connection
-var redis = require('redis').createClient(config.redis.port, config.redis.host, {'enable_offline_queue': false});
-
-redis.on('error', function (error) {
-	util.log("Could not create a Redis client connection to " + config.redis.host + ":" + config.redis.port);
-	process.exit(6);
-});
-
 // Create StatsD connection
 var statsd = new nodestatsd(config.statsd.host, config.statsd.port);
 
@@ -200,10 +192,7 @@ if (cluster.isMaster) {
 							statsd.timing(config.statsd.prefix + '.sentry.request', ((endSentry - startSentry) / 1000));
 							try {
 								var sentry = JSON.parse(responseData);
-								if (sentry.id) {
-									redis.hset(config.redis.key, responseuuid, sentry.id);
-									statsd.increment(config.statsd.prefix + '.sentry.request.success');
-								} else {
+								if (!sentry.id) {
 									throw new Error("JSON response from Sentry contained no success ID");
 								}
 							} catch (responseError) {
@@ -243,21 +232,7 @@ if (cluster.isMaster) {
 		var requesturl = request.url;
 		var startHTTP = microtime.now();
 
-		if (request.method === "GET") {
-			requesturl = requesturl.replace(/\/locate\//g, '').replace(/\//g, '').substring(0, 36);
-			redis.hget(config.redis.key, requesturl, function (error, reply) {
-				if (reply) {
-					response.writeHead(303, {
-						'Location': 'https://airbrake.io/locate/' + reply,
-					});
-				} else {
-					response.writeHead(404);
-				}
-
-				response.end();
-				request.connection.destroy();
-			});
-		} else {
+		if (request.method != "GET") {
 			var data = '';
 			request.on('data', function (chunk) {
 				data += chunk;
@@ -271,9 +246,6 @@ if (cluster.isMaster) {
 				// Store stats about the request
 				var endHTTP = microtime.now();
 				statsd.timing(config.statsd.prefix + '.http.request', ((endHTTP - startHTTP) / 1000));
-
-				// Store the generated UUID in Redis
-				redis.hset(config.redis.key, responseuuid, "null");
 
 				// If Sentry configuration is defined, create and send a Sentry request object to the Sentry host
 				if (config.sentry.host != "") {
