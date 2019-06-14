@@ -18,7 +18,6 @@ var zlib = require('zlib');
 var crypto = require('crypto');
 var cluster = require('cluster');
 var microtime = require('microtime');
-var nodestatsd = require('node-statsd').StatsD;
 var xmlparse = require('xml2js').parseString;
 var uuid = require('./lib/uuid');
 
@@ -39,9 +38,6 @@ var config = require('./lib/config').config(configjson);
 
 // Choose protocol to connect to Sentry with
 config.sentry.connection = (config.sentry.protocol === "https") ? require('https') : require('http');
-
-// Create StatsD connection
-var statsd = new nodestatsd(config.statsd.host, config.statsd.port);
 
 // Airbrake style XML response to send to client
 var xmlresponse = '<?xml version="1.0"?><notice><id>{UUID}</id><url>http://' + config.listen.hostname + ':' + config.listen.port + '/locate/{UUID}</url></notice>';
@@ -189,14 +185,12 @@ if (cluster.isMaster) {
 							responseData += chunk;
 						}).on('end', function () {
 							var endSentry = microtime.now();
-							statsd.timing(config.statsd.prefix + '.sentry.request', ((endSentry - startSentry) / 1000));
 							try {
 								var sentry = JSON.parse(responseData);
 								if (!sentry.id) {
 									throw new Error("JSON response from Sentry contained no success ID");
 								}
 							} catch (responseError) {
-								statsd.increment(config.statsd.prefix + '.sentry.request.fail.json');
 								util.log("JSON response returned from " + config.sentry.host + ":" + config.sentry.port + " is invalid (" + responseError + "); response: " + responseData);
 							}
 						});
@@ -206,7 +200,6 @@ if (cluster.isMaster) {
 					sentryRequest.on('socket', function (socket) {
 						socket.setTimeout(config.sentry.timeout);
 						socket.on('timeout', function () {
-							statsd.increment(config.statsd.prefix + '.sentry.request.fail.timeout');
 							util.log("Connection to " + config.sentry.host + ":" + config.sentry.port + " for " + responseuuid + " timed out after " + config.sentry.timeout + "ms");
 							sentryRequest.abort();
 						});
@@ -216,7 +209,6 @@ if (cluster.isMaster) {
 					sentryRequest.on('error', function (error) {
 						util.log("Failed sending request to " + config.sentry.host + ":" + config.sentry.port + " for " + responseuuid + ", exception lost; error: " + error);
 						sentryRequest.abort();
-						statsd.increment(config.statsd.prefix + '.sentry.request.fail.error');
 					});
 
 					// Send the Sentry object data and end the connection
@@ -242,10 +234,6 @@ if (cluster.isMaster) {
 				response.writeHead(200);
 				response.end(xmlresponse.replace(/{UUID}/g, responseuuid));
 				request.connection.destroy();
-
-				// Store stats about the request
-				var endHTTP = microtime.now();
-				statsd.timing(config.statsd.prefix + '.http.request', ((endHTTP - startHTTP) / 1000));
 
 				// If Sentry configuration is defined, create and send a Sentry request object to the Sentry host
 				if (config.sentry.host != "") {
